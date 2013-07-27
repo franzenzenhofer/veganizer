@@ -1,0 +1,17 @@
+{
+  "name": "raf.js",
+  "version": "0.0.1",
+  "main": "raf.js",
+  "ignore": [
+    "test.html"
+  ],
+  "gitHead": "2dd51011427fb27f57abb816941be4b890dcb08f",
+  "readme": "# raf.js <sup>0.0.1</sup>\n\nYet another `requestAnimationFrame` polyfill:\n- really tiny: **384 bytes minified** and **243 gzipped**.\n- available on [bower](http://bower.io/).\n- available on [jamjs](http://jamjs.org/).\n\n## Credits\n\nPaul's Irish [gist](https://gist.github.com/paulirish/1579671).\n",
+  "readmeFilename": "README.md",
+  "_id": "raf.js@0.0.1",
+  "description": "Yet another `requestAnimationFrame` polyfill: - really tiny: **384 bytes minified** and **243 gzipped**. - available on [bower](http://bower.io/). - available on [jamjs](http://jamjs.org/).",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/ngryman/raf.js.git"
+  }
+}
