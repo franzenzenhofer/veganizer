@@ -1,67 +1,73 @@
-# /*! yet-another-coffescript-skeleton - v0.0.2 - last build: 2013-07-23 11:08:05 */
+# /*! yet-another-coffescript-skeleton - v0.0.2 - last build: 2013-08-15 22:14:19 */
 
 _DEBUG_ = true
 
-testimage = $('#testimage').get(0)
+RESIZE_FACTOR = 5
+BIG_PIXEL_SIZE = 15
 
 dlog = (msg) -> 
   console.log(msg) if _DEBUG_
   return msg
 
-dappend = (c) ->
+dappend = (c) -> 
   $('body').append(c) if _DEBUG_
+  return c
 
-RESIZE_FACTOR = 5
-BIG_PIXEL_SIZE = 15
-
-
- 
-drawRotatedImage = (image, context, x, y, angle) -> 
+drawRotatedImage = (image, context, x=0, y=0, angle=0) -> 
   TO_RADIANS = Math.PI/180
   context.save();
   context.translate(x, y)
   context.rotate(angle * TO_RADIANS)
   context.drawImage(image, -(image.width/2), -(image.height/2))
   context.restore()
+  return true
 
+getBrightness = (r,g,b) ->
+  return (3*r+4*g+b)>>>3
 
-makeDraw = (ctx, parts) ->
-  #dlog(parts)
+brightnessSortForExtendedPixels = (ae,be)-> 
+  a = ae.color
+  b = be.color
+  sorty_value = ((3*a[0]+4*a[1]+a[2])>>>3) - ((3*b[0]+4*b[1]+b[2])>>>3)
+  return sorty_value
+
+drawExtendedPixelWithPart = (ctx, part_to_draw, x = 0, y = 0, rotation = 0, mirror = false) ->
+  if mirror
+    drawRotatedImage(FE.mirror(part_to_draw.part), ctx, x*BIG_PIXEL_SIZE, y*BIG_PIXEL_SIZE, rotation)
+  else
+    drawRotatedImage(part_to_draw.part, ctx, x*BIG_PIXEL_SIZE, y*BIG_PIXEL_SIZE, rotation)
+  return true
+
+makeDrawByBrightness = (ctx, parts) ->
+  nr_of_buckets = parts.length
+  sorted_by_brightness_parts = parts.sort(brightnessSortForExtendedPixels)
+  dlog('sorted_by_brightness_parts')
+  dlog(sorted_by_brightness_parts)
+  
   return (color,x,y,rotation=0, mirror=false, i) ->
-    #dlog('in draw')
-    #dlog(x+':'+y)
-    fitness = (c2, c1) ->
-      color1 = pusher.color("rgba("+c1[0]+","+c1[1]+","+c1[2]+","+c1[3]+")")
-      color2 = pusher.color("rgba("+c2[0]+","+c2[1]+","+c2[2]+","+c2[3]+")")
-      dif = color1.hue() - color2.hue()
-      if (dif) < 0
-        return dif * -1
-      else
-        return dif
-    
-    part_to_draw = _.first(_.sortBy(parts, (p)-> fitness(p.color, color)))
-
-    #dlog('part to draw')
-    #dlog(part_to_draw)
-    #dlog('part to draw end')
-
-    #ctx.fillStyle = "rgba("+part_to_draw.color.join(',')+")"
-    #ctx.fillRect(x*BIG_PIXEL_SIZE, y*BIG_PIXEL_SIZE, BIG_PIXEL_SIZE, BIG_PIXEL_SIZE)
-    #ctx.drawImage(part_to_draw.part, x*BIG_PIXEL_SIZE, y*BIG_PIXEL_SIZE)
-    if mirror
-      drawRotatedImage(FE.mirror(part_to_draw.part), ctx, x*BIG_PIXEL_SIZE, y*BIG_PIXEL_SIZE, rotation)
-    else
-      drawRotatedImage(part_to_draw.part, ctx, x*BIG_PIXEL_SIZE, y*BIG_PIXEL_SIZE, rotation)
+    brightness = getBrightness(color[0], color[1], color[2])
+    bucket_nr = Math.floor(brightness / 256 * nr_of_buckets)
+    part_to_draw = sorted_by_brightness_parts[bucket_nr]
+    drawExtendedPixelWithPart(ctx, part_to_draw, x, y, rotation, mirror)
     return [color,x,y,i]
 
+#old algorihtm using http://tech.pusherhq.com/libraries/color .hue function
+#makeDraw = (ctx, parts) ->
+#  return (color,x,y,rotation=0, mirror=false, i) ->
+#    fitness = (c2, c1) ->
+#      color1 = pusher.color("rgba("+c1[0]+","+c1[1]+","+c1[2]+","+c1[3]+")")
+#      color2 = pusher.color("rgba("+c2[0]+","+c2[1]+","+c2[2]+","+c2[3]+")")
+#      dif = color1.hue() - color2.hue()
+#      Math.abs(dif)
+#    part_to_draw = _.first(_.sortBy(parts, (p)-> fitness(p.color, color)))
+#    drawExtendedPixelWithPart(ctx, part_to_draw, x, y, rotation, mirror)
+#    return [color,x,y,i]
 
-
-coolectParts = (cb) ->
+coolectParts = (selector, w, h, cb) ->
   collector = []
 
   collectItAll = (part_canvas, rgb) ->
-    #dlog('hi')
-    #data_rgb = $(part_canvas).attr('data-rgb')
+    part_canvas = FE.hardResize(part_canvas, w, h)
     if rgb and rgb.length is 3
         [r,g,b] = rgb
         collector.push({
@@ -71,55 +77,49 @@ coolectParts = (cb) ->
     else
       oneone = FE.pixelyResize(part_canvas,1,1)
       filter = (r,g,b,a,i) -> 
-        dlog(r+" "+g+" "+b)
         collector.push({
         "part": part_canvas
         "color": [r,g,b,1.0]
         })
       FE.rgba(oneone,filter,((c)->null))
     
-    #dlog(collector.length)
-    if collector.length is $('.parts').size()
+    #after we have collected all parts
+    if collector.length is $(selector).size()
       _.each(collector, (p)->
         dappend($('<div><span style="background-color:rgba('+p.color[0]+','+p.color[1]+','+p.color[2]+','+p.color[3]+')">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></div>'))
         dappend($(p.part))
         )
-      dlog(collector)
       cb(collector)
 
-  $('.parts').each((x)->
-    #dlog(this)
-    #dlog(this)
+  $(selector).each((x)->
     data_rgb = false
     string_data_rgb = $(this).attr('data-rgb')
     if string_data_rgb
       data_rgb = _.map(string_data_rgb.split(','), ((x)->parseInt(x)))
     FE.byImage(this, (c)-> (collectItAll(c, data_rgb)))
-    #dlog('ho')
     )
 
 dummy_step = (out, full) ->
-  #dappend(out)
-  $('#out').html(out)
-  #dappend(full)   
+  $('#out').html(out) 
 
 dummy_final = (out, full) ->
   dappend(out)
   dappend(full)
 
 
-veganize = (c, parts, out_w=c.width, out_h=c.height, step_cb=dummy_step, final_cb=dummy_final) -> 
 
-  #make a pixely version of the c canvas
-  rw = Math.floor(c.width/RESIZE_FACTOR)
-  rh = Math.floor(c.height/RESIZE_FACTOR)
-  rc = FE.pixelyResize(FE.invert(c, 0.0), rw, rh)
+#createPixelyVersion = (c) ->
+#  #make a pixely version of the c canvas
+#  rw = Math.floor(c.width/RESIZE_FACTOR)
+#  rh = Math.floor(c.height/RESIZE_FACTOR)
+#  rc = FE.pixelyResize(FE.invert(c, 0.0), rw, rh)
+#  dappend(rc)
+#  return [rc, rw, rh]
 
-
-  dappend(rc)
-  dappend(FE.pixelyResize(rc, c.width, c.height))
-
+extendPixels = (c) ->
   #create an array with extended veganized pixels
+  rw = c.width
+  rh = c.height
   rpx = []
   filter = (r,g,b,a, i) -> 
     pnr = Math.floor(i/4)
@@ -131,13 +131,47 @@ veganize = (c, parts, out_w=c.width, out_h=c.height, step_cb=dummy_step, final_c
       "mirror": (if _.random(0,1) is 0 then false else true)
       pixel_nr: pnr
       )
-  FE.rgba(rc,filter,((c)->null))
+  FE.rgba(c,filter,((c)->null))
+  return rpx
+
+
+createPixelyVersion = (c, pixel_width = 20, pixel_height = 20, overlap = 0.2, out_w = c.width, out_h = c.height) ->
+  if overlap >= 1 then overlap = 0
+  rw = Math.floor(out_w/(pixel_width*(1-overlap)))
+  rh = Math.floor(out_h/(pixel_height*(1-overlap)))
+  rc = FE.pixelyResize(c, rw, rh)
+  dappend(rc)
+  return [rc, rw, rh]  
+
+veganize = (c, parts, step_cb = dummy_step, final_cb = dummy_final) ->
+  dis_w = c.width
+  dis_h = c.height 
+  hire_w = dis_w*5
+  hire_h = dis_h*5
+
+#veganize = (c, parts, out_w=c.width, out_h=c.height, step_cb=dummy_step, final_cb=dummy_final) -> 
+
+  #abstract this into a part pixel w/h function parts[0].part.width, parts[0].part.height, 0.3
+  #ok, goal must be to keep the ratio and then bring it unter max 100 pixels
+  [rc, rw, rh] = createPixelyVersion(c, parts[0].part.width, parts[0].part.height, 0.3, hire_w, hire_h)
+  dappend(rc)
+  dappend(FE.pixelyResize(rc, c.width, c.height))
+
+  new_w = Math.floor(rw*parts[0].part.width*(1-0.3))
+  new_h = Math.floor(rh*parts[0].part.height*(1-0.3))
+
+ 
 
   #this is the big version
+  #TODO bigpixel size must be gone!!! from here and from draw
   [new_c, new_ctx, new_img_data, new_img_data_data] = FE.newCanvasToolbox(rw*BIG_PIXEL_SIZE, rh*BIG_PIXEL_SIZE)
+  #[new_c, new_ctx, new_img_data, new_img_data_data] = FE.newCanvasToolbox(new_w, new_h)
 
-  draw = makeDraw(new_ctx, parts)
 
+  #draw = makeDraw(new_ctx, parts)
+  draw = makeDrawByBrightness(new_ctx, parts)
+
+  rpx = extendPixels(rc)
   #make the draws random
   shuffeled_rpx = _.shuffle(rpx)
 
@@ -145,8 +179,8 @@ veganize = (c, parts, out_w=c.width, out_h=c.height, step_cb=dummy_step, final_c
   end = false
   do drawingLoop = () ->
     if i >= shuffeled_rpx.length
-      out_canvas = FE.hardResize(new_c, out_w, out_h)
-      final_cb(out_canvas, new_c)
+      hire_canvas = FE.hardResize(new_c, hire_w, hire_h)
+      final_cb(hire_canvas, new_c)
     else
       for x in [0..10]
         do (x) ->
@@ -154,7 +188,7 @@ veganize = (c, parts, out_w=c.width, out_h=c.height, step_cb=dummy_step, final_c
           p = shuffeled_rpx[z]
           if p 
             draw(p.color,p.x,p.y,p.rotation,p.mirror,i)
-            step_cb(FE.hardResize(new_c, out_w, out_h), new_c)
+            step_cb(FE.hardResize(new_c, dis_w, dis_h), new_c)
       i = i + 10
       requestAnimationFrame(drawingLoop)
 
@@ -174,8 +208,8 @@ veganize = (c, parts, out_w=c.width, out_h=c.height, step_cb=dummy_step, final_c
 
 
 
-coolectParts((parts)->
-  FE.byImage(testimage, (
+coolectParts('.parts', 40, 40, (parts)->
+  FE.byImage($('#testimage').get(0), (
     (c)->veganize(c,parts))
   )
 )
