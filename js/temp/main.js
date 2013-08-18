@@ -1,5 +1,5 @@
 (function() {
-  var BIG_PIXEL_SIZE, RESIZE_FACTOR, brightnessSortForExtendedPixels, coolectParts, createPixelyVersion, dappend, dlog, drawExtendedPixelWithPart, drawRotatedImage, dummy_final, dummy_step, extendPixels, getBrightness, makeDrawByBrightness, veganize, _DEBUG_;
+  var BIG_PIXEL_SIZE, RESIZE_FACTOR, before, brightnessSortForExtendedPixels, collectParts, createIdealPixelWH, createPixelyVersion, dappend, dlog, drawExtendedPixelWithPart, drawRotatedImage, dummy_before, dummy_final, dummy_step, extendPixels, finish, getBrightness, makeDrawByBrightness, step, veganize, _DEBUG_;
 
   _DEBUG_ = true;
 
@@ -67,19 +67,17 @@
       mirror = false;
     }
     if (mirror) {
-      drawRotatedImage(FE.mirror(part_to_draw.part), ctx, x * BIG_PIXEL_SIZE, y * BIG_PIXEL_SIZE, rotation);
+      drawRotatedImage(FE.mirror(part_to_draw.part), ctx, x, y, rotation);
     } else {
-      drawRotatedImage(part_to_draw.part, ctx, x * BIG_PIXEL_SIZE, y * BIG_PIXEL_SIZE, rotation);
+      drawRotatedImage(part_to_draw.part, ctx, x, y, rotation);
     }
     return true;
   };
 
-  makeDrawByBrightness = function(ctx, parts) {
+  makeDrawByBrightness = function(ctx, parts, pixel_w_h) {
     var nr_of_buckets, sorted_by_brightness_parts;
     nr_of_buckets = parts.length;
     sorted_by_brightness_parts = parts.sort(brightnessSortForExtendedPixels);
-    dlog('sorted_by_brightness_parts');
-    dlog(sorted_by_brightness_parts);
     return function(color, x, y, rotation, mirror, i) {
       var brightness, bucket_nr, part_to_draw;
       if (rotation == null) {
@@ -91,17 +89,16 @@
       brightness = getBrightness(color[0], color[1], color[2]);
       bucket_nr = Math.floor(brightness / 256 * nr_of_buckets);
       part_to_draw = sorted_by_brightness_parts[bucket_nr];
-      drawExtendedPixelWithPart(ctx, part_to_draw, x, y, rotation, mirror);
+      drawExtendedPixelWithPart(ctx, part_to_draw, x * pixel_w_h, y * pixel_w_h, rotation, mirror);
       return [color, x, y, i];
     };
   };
 
-  coolectParts = function(selector, w, h, cb) {
+  collectParts = function(selector, cb) {
     var collectItAll, collector;
     collector = [];
     collectItAll = function(part_canvas, rgb) {
       var b, filter, g, oneone, r;
-      part_canvas = FE.hardResize(part_canvas, w, h);
       if (rgb && rgb.length === 3) {
         r = rgb[0], g = rgb[1], b = rgb[2];
         collector.push({
@@ -143,15 +140,6 @@
     });
   };
 
-  dummy_step = function(out, full) {
-    return $('#out').html(out);
-  };
-
-  dummy_final = function(out, full) {
-    dappend(out);
-    return dappend(full);
-  };
-
   extendPixels = function(c) {
     var filter, rh, rpx, rw;
     rw = c.width;
@@ -175,83 +163,120 @@
     return rpx;
   };
 
-  createPixelyVersion = function(c, pixel_width, pixel_height, overlap, out_w, out_h) {
+  createPixelyVersion = function(c, max_w_h) {
     var rc, rh, rw;
-    if (pixel_width == null) {
-      pixel_width = 20;
+    if (max_w_h == null) {
+      max_w_h = 100;
     }
-    if (pixel_height == null) {
-      pixel_height = 20;
+    if (c.width >= c.height) {
+      rw = max_w_h;
+      rh = c.heigth * rw / c.width;
+    } else {
+      rh = max_w_h;
+      rw = c.width * rh / c.height;
     }
-    if (overlap == null) {
-      overlap = 0.2;
-    }
-    if (out_w == null) {
-      out_w = c.width;
-    }
-    if (out_h == null) {
-      out_h = c.height;
-    }
-    if (overlap >= 1) {
-      overlap = 0;
-    }
-    rw = Math.floor(out_w / (pixel_width * (1 - overlap)));
-    rh = Math.floor(out_h / (pixel_height * (1 - overlap)));
     rc = FE.pixelyResize(c, rw, rh);
     dappend(rc);
     return [rc, rw, rh];
   };
 
-  veganize = function(c, parts, step_cb, final_cb) {
-    var dis_h, dis_w, draw, drawingLoop, end, hire_h, hire_w, i, new_c, new_ctx, new_h, new_img_data, new_img_data_data, new_w, rc, rh, rpx, rw, shuffeled_rpx, _ref, _ref1;
+  createIdealPixelWH = function(parts, overlap) {
+    var non_overlap, p, pixel_w_h, _fn, _i, _len;
+    non_overlap = 1 - overlap;
+    pixel_w_h = 0;
+    _fn = function(p) {
+      return pixel_w_h = pixel_w_h + p.part.width + p.part.height;
+    };
+    for (_i = 0, _len = parts.length; _i < _len; _i++) {
+      p = parts[_i];
+      _fn(p);
+    }
+    pixel_w_h = Math.floor(pixel_w_h / (parts.length * 2) * non_overlap);
+    return pixel_w_h;
+  };
+
+  dummy_before = function(c) {
+    return null;
+  };
+
+  dummy_step = function(c, loop_i, total_loops) {
+    return null;
+  };
+
+  dummy_final = function(c) {
+    return null;
+  };
+
+  veganize = function(c, parts, overlap, before_cb, step_cb, final_cb) {
+    var dis_h, dis_w, draw, drawingLoop, draws_per_loop, i, loop_i, new_c, new_ctx, new_img_data, new_img_data_data, pixel_w_h, rc, rh, rpx, rpx_length, rw, shuffeled_rpx, total_loops, _ref, _ref1;
+    if (overlap == null) {
+      overlap = 0.3;
+    }
+    if (before_cb == null) {
+      before_cb = dummy_before;
+    }
     if (step_cb == null) {
       step_cb = dummy_step;
     }
     if (final_cb == null) {
       final_cb = dummy_final;
     }
+    if (overlap >= 1) {
+      overlap = 0.3;
+    }
     dis_w = c.width;
     dis_h = c.height;
-    hire_w = dis_w * 5;
-    hire_h = dis_h * 5;
-    _ref = createPixelyVersion(c, parts[0].part.width, parts[0].part.height, 0.3, hire_w, hire_h), rc = _ref[0], rw = _ref[1], rh = _ref[2];
-    dappend(rc);
-    dappend(FE.pixelyResize(rc, c.width, c.height));
-    new_w = Math.floor(rw * parts[0].part.width * (1 - 0.3));
-    new_h = Math.floor(rh * parts[0].part.height * (1 - 0.3));
-    _ref1 = FE.newCanvasToolbox(rw * BIG_PIXEL_SIZE, rh * BIG_PIXEL_SIZE), new_c = _ref1[0], new_ctx = _ref1[1], new_img_data = _ref1[2], new_img_data_data = _ref1[3];
-    draw = makeDrawByBrightness(new_ctx, parts);
+    _ref = createPixelyVersion(c, 100), rc = _ref[0], rw = _ref[1], rh = _ref[2];
+    pixel_w_h = createIdealPixelWH(parts, overlap);
+    dlog(pixel_w_h);
+    _ref1 = dlog(FE.newCanvasToolbox(rw * pixel_w_h, rh * pixel_w_h)), new_c = _ref1[0], new_ctx = _ref1[1], new_img_data = _ref1[2], new_img_data_data = _ref1[3];
+    draw = makeDrawByBrightness(new_ctx, parts, pixel_w_h);
     rpx = extendPixels(rc);
     shuffeled_rpx = _.shuffle(rpx);
+    rpx_length = shuffeled_rpx.length;
+    draws_per_loop = 10;
+    before_cb(new_c);
     i = 0;
-    end = false;
+    loop_i = 0;
+    total_loops = Math.ceil(shuffeled_rpx.length / draws_per_loop);
     return (drawingLoop = function() {
-      var hire_canvas, x, _fn, _i;
-      if (i >= shuffeled_rpx.length) {
-        hire_canvas = FE.hardResize(new_c, hire_w, hire_h);
-        return final_cb(hire_canvas, new_c);
+      var x, _fn, _i;
+      if (i >= rpx_length) {
+        return final_cb(new_c);
       } else {
         _fn = function(x) {
-          var p, z;
-          z = i + x;
-          p = shuffeled_rpx[z];
+          var p;
+          p = shuffeled_rpx[i + x];
           if (p) {
-            draw(p.color, p.x, p.y, p.rotation, p.mirror, i);
-            return step_cb(FE.hardResize(new_c, dis_w, dis_h), new_c);
+            return draw(p.color, p.x, p.y, p.rotation, p.mirror, i);
           }
         };
-        for (x = _i = 0; _i <= 10; x = ++_i) {
+        for (x = _i = 0; 0 <= draws_per_loop ? _i <= draws_per_loop : _i >= draws_per_loop; x = 0 <= draws_per_loop ? ++_i : --_i) {
           _fn(x);
         }
-        i = i + 10;
+        step_cb(new_c, loop_i, total_loops);
+        i = i + draws_per_loop;
+        loop_i = loop_i + 1;
         return requestAnimationFrame(drawingLoop);
       }
     })();
   };
 
-  coolectParts('.parts', 40, 40, function(parts) {
+  before = function(c) {
+    return dappend(c);
+  };
+
+  step = function(c) {
+    return dappend(c);
+  };
+
+  finish = function(c) {
+    return dappend(c);
+  };
+
+  collectParts('.parts', function(parts) {
     return FE.byImage($('#testimage').get(0), (function(c) {
-      return veganize(c, parts);
+      return veganize(c, parts, 0.65, before, step, finish);
     }));
   });
 

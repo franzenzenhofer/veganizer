@@ -1,4 +1,3 @@
-
 _DEBUG_ = true
 
 RESIZE_FACTOR = 5
@@ -32,22 +31,22 @@ brightnessSortForExtendedPixels = (ae,be)->
 
 drawExtendedPixelWithPart = (ctx, part_to_draw, x = 0, y = 0, rotation = 0, mirror = false) ->
   if mirror
-    drawRotatedImage(FE.mirror(part_to_draw.part), ctx, x*BIG_PIXEL_SIZE, y*BIG_PIXEL_SIZE, rotation)
+    drawRotatedImage(FE.mirror(part_to_draw.part), ctx, x, y, rotation)
   else
-    drawRotatedImage(part_to_draw.part, ctx, x*BIG_PIXEL_SIZE, y*BIG_PIXEL_SIZE, rotation)
+    drawRotatedImage(part_to_draw.part, ctx, x, y, rotation)
   return true
 
-makeDrawByBrightness = (ctx, parts) ->
+makeDrawByBrightness = (ctx, parts, pixel_w_h) ->
   nr_of_buckets = parts.length
   sorted_by_brightness_parts = parts.sort(brightnessSortForExtendedPixels)
-  dlog('sorted_by_brightness_parts')
-  dlog(sorted_by_brightness_parts)
+  #dlog('sorted_by_brightness_parts')
+  #dlog(sorted_by_brightness_parts)
   
   return (color,x,y,rotation=0, mirror=false, i) ->
     brightness = getBrightness(color[0], color[1], color[2])
     bucket_nr = Math.floor(brightness / 256 * nr_of_buckets)
     part_to_draw = sorted_by_brightness_parts[bucket_nr]
-    drawExtendedPixelWithPart(ctx, part_to_draw, x, y, rotation, mirror)
+    drawExtendedPixelWithPart(ctx, part_to_draw, x*pixel_w_h, y*pixel_w_h, rotation, mirror)
     return [color,x,y,i]
 
 #old algorihtm using http://tech.pusherhq.com/libraries/color .hue function
@@ -62,11 +61,12 @@ makeDrawByBrightness = (ctx, parts) ->
 #    drawExtendedPixelWithPart(ctx, part_to_draw, x, y, rotation, mirror)
 #    return [color,x,y,i]
 
-coolectParts = (selector, w, h, cb) ->
+collectParts = (selector, cb) ->
   collector = []
 
   collectItAll = (part_canvas, rgb) ->
-    part_canvas = FE.hardResize(part_canvas, w, h)
+    #part_canvas = FE.hardResize(part_canvas, w, h)
+    #part_canvas = FE.copy(part_canvas)
     if rgb and rgb.length is 3
         [r,g,b] = rgb
         collector.push({
@@ -98,12 +98,6 @@ coolectParts = (selector, w, h, cb) ->
     FE.byImage(this, (c)-> (collectItAll(c, data_rgb)))
     )
 
-dummy_step = (out, full) ->
-  $('#out').html(out) 
-
-dummy_final = (out, full) ->
-  dappend(out)
-  dappend(full)
 
 
 
@@ -134,61 +128,81 @@ extendPixels = (c) ->
   return rpx
 
 
-createPixelyVersion = (c, pixel_width = 20, pixel_height = 20, overlap = 0.2, out_w = c.width, out_h = c.height) ->
-  if overlap >= 1 then overlap = 0
-  rw = Math.floor(out_w/(pixel_width*(1-overlap)))
-  rh = Math.floor(out_h/(pixel_height*(1-overlap)))
+#createPixelyVersion = (c, pixel_width = 20, pixel_height = 20, overlap = 0.2, out_w = c.width, out_h = c.height) ->
+#  if overlap >= 1 then overlap = 0
+#  rw = Math.floor(out_w/(pixel_width*(1-overlap)))
+#  rh = Math.floor(out_h/(pixel_height*(1-overlap)))
+#  rc = FE.pixelyResize(c, rw, rh)
+#  dappend(rc)
+#  return [rc, rw, rh]  
+
+createPixelyVersion = (c, max_w_h = 100) ->
+  if c.width >= c.height
+    rw = max_w_h
+    rh = c.heigth * rw/c.width
+  else
+    rh = max_w_h
+    rw = c.width * rh/c.height
   rc = FE.pixelyResize(c, rw, rh)
   dappend(rc)
-  return [rc, rw, rh]  
+  return [rc, rw, rh] 
 
-veganize = (c, parts, step_cb = dummy_step, final_cb = dummy_final) ->
+createIdealPixelWH = (parts, overlap) ->
+
+  non_overlap = 1 - overlap
+  pixel_w_h = 0
+  for p in parts
+    do (p) ->
+      pixel_w_h = pixel_w_h + p.part.width + p.part.height
+  pixel_w_h = Math.floor(pixel_w_h/(parts.length*2)*non_overlap)
+  return pixel_w_h
+
+dummy_before = (c) -> return null
+
+dummy_step = (c, loop_i, total_loops) -> return null
+
+dummy_final = (c) -> return null
+
+veganize = (c, parts, overlap=0.3, before_cb = dummy_before, step_cb = dummy_step, final_cb = dummy_final) ->
+  if overlap >= 1 then overlap = 0.3
   dis_w = c.width
   dis_h = c.height 
-  hire_w = dis_w*5
-  hire_h = dis_h*5
 
-#veganize = (c, parts, out_w=c.width, out_h=c.height, step_cb=dummy_step, final_cb=dummy_final) -> 
+  [rc, rw, rh] = createPixelyVersion(c, 100) 
 
-  #abstract this into a part pixel w/h function parts[0].part.width, parts[0].part.height, 0.3
-  #ok, goal must be to keep the ratio and then bring it unter max 100 pixels
-  [rc, rw, rh] = createPixelyVersion(c, parts[0].part.width, parts[0].part.height, 0.3, hire_w, hire_h)
-  dappend(rc)
-  dappend(FE.pixelyResize(rc, c.width, c.height))
+  pixel_w_h = createIdealPixelWH(parts, overlap)
+  dlog(pixel_w_h)
 
-  new_w = Math.floor(rw*parts[0].part.width*(1-0.3))
-  new_h = Math.floor(rh*parts[0].part.height*(1-0.3))
-
- 
-
-  #this is the big version
-  #TODO bigpixel size must be gone!!! from here and from draw
-  [new_c, new_ctx, new_img_data, new_img_data_data] = FE.newCanvasToolbox(rw*BIG_PIXEL_SIZE, rh*BIG_PIXEL_SIZE)
+  [new_c, new_ctx, new_img_data, new_img_data_data] = dlog(FE.newCanvasToolbox(rw*pixel_w_h, rh*pixel_w_h))
   #[new_c, new_ctx, new_img_data, new_img_data_data] = FE.newCanvasToolbox(new_w, new_h)
 
 
   #draw = makeDraw(new_ctx, parts)
-  draw = makeDrawByBrightness(new_ctx, parts)
+  draw = makeDrawByBrightness(new_ctx, parts, pixel_w_h)
 
   rpx = extendPixels(rc)
   #make the draws random
   shuffeled_rpx = _.shuffle(rpx)
-
+  rpx_length = shuffeled_rpx.length
+  draws_per_loop = 10
+  before_cb(new_c)
+  
   i = 0
-  end = false
+  loop_i = 0
+  total_loops = Math.ceil(shuffeled_rpx.length/draws_per_loop)
+  
   do drawingLoop = () ->
-    if i >= shuffeled_rpx.length
-      hire_canvas = FE.hardResize(new_c, hire_w, hire_h)
-      final_cb(hire_canvas, new_c)
+    if i >= rpx_length
+      final_cb(new_c)
     else
-      for x in [0..10]
+      for x in [0..draws_per_loop]
         do (x) ->
-          z = i + x
-          p = shuffeled_rpx[z]
-          if p 
-            draw(p.color,p.x,p.y,p.rotation,p.mirror,i)
-            step_cb(FE.hardResize(new_c, dis_w, dis_h), new_c)
-      i = i + 10
+          p = shuffeled_rpx[i+x]
+          if p then draw(p.color,p.x,p.y,p.rotation,p.mirror,i)
+      step_cb(new_c, loop_i, total_loops) 
+      
+      i = i + draws_per_loop
+      loop_i = loop_i + 1
       requestAnimationFrame(drawingLoop)
 
   #for p,i in shuffeled_rpx
@@ -205,11 +219,14 @@ veganize = (c, parts, step_cb = dummy_step, final_cb = dummy_final) ->
   
   #_.each()
 
+before = (c) -> dappend(c)
+step = (c) -> dappend(c)
+finish = (c) -> dappend(c)
 
 
-coolectParts('.parts', 40, 40, (parts)->
+collectParts('.parts', (parts)->
   FE.byImage($('#testimage').get(0), (
-    (c)->veganize(c,parts))
+    (c)->veganize(c, parts, 0.65, before, step, finish))
   )
 )
 
