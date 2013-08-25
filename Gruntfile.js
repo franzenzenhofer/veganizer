@@ -90,7 +90,8 @@ module.exports = function(grunt) {
         collapseWhitespace: true
       },
       files: {                                   // Dictionary of files
-        'html/min/index.html': 'html/src/index.html'     // 'destination': 'source'
+        'html/min/index.html': 'html/src/index.html',     // 'destination': 'source'
+        'html/min/test.html': 'html/src/test.html' 
         }
       }
     },

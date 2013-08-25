@@ -1,24 +1,31 @@
-/*! yet-another-coffescript-skeleton - v0.0.2 - last build: 2013-08-17 18:51:14 */
+/*! yet-another-coffescript-skeleton - v0.0.2 - last build: 2013-08-24 20:37:41 */
 (function() {
-  var BIG_PIXEL_SIZE, RESIZE_FACTOR, before, brightnessSortForExtendedPixels, collectParts, createIdealPixelWH, createPixelyVersion, dappend, dlog, drawExtendedPixelWithPart, drawRotatedImage, dummy_before, dummy_final, dummy_step, extendPixels, finish, getBrightness, makeDrawByBrightness, step, veganize, _DEBUG_;
+  var OVERLAP, append, before, brightnessSortForExtendedPixels, collectParts, createIdealPixelWH, createPixelyVersion, dappend, dlog, drawExtendedPixelWithPart, drawRotatedImage, drawWithPicsInsteadOfPixels, drawing_parts, extendPixels, finish, getBrightness, gotFile, makeDrawByBrightness, n, pick, step, toCanvas, _DEBUG_;
 
-  _DEBUG_ = true;
+  _DEBUG_ = false;
 
-  RESIZE_FACTOR = 5;
-
-  BIG_PIXEL_SIZE = 15;
-
-  dlog = function(msg) {
-    if (_DEBUG_) {
+  dlog = function(msg, debug) {
+    if (debug == null) {
+      debug = _DEBUG_;
+    }
+    if (debug) {
       console.log(msg);
     }
     return msg;
   };
 
-  dappend = function(c) {
-    if (_DEBUG_) {
+  dappend = function(c, debug) {
+    if (debug == null) {
+      debug = _DEBUG_;
+    }
+    if (debug) {
       $('body').append(c);
     }
+    return c;
+  };
+
+  append = function(c) {
+    $('body').append(c);
     return c;
   };
 
@@ -46,12 +53,11 @@
     return (3 * r + 4 * g + b) >>> 3;
   };
 
-  brightnessSortForExtendedPixels = function(ae, be) {
-    var a, b, sorty_value;
-    a = ae.color;
-    b = be.color;
-    sorty_value = ((3 * a[0] + 4 * a[1] + a[2]) >>> 3) - ((3 * b[0] + 4 * b[1] + b[2]) >>> 3);
-    return sorty_value;
+  brightnessSortForExtendedPixels = function(a_extended, b_extended) {
+    var a, b;
+    a = a_extended.color;
+    b = b_extended.color;
+    return getBrightness(a[0], a[1], a[2]) - getBrightness(b[0], b[1], b[2]);
   };
 
   drawExtendedPixelWithPart = function(ctx, part_to_draw, x, y, rotation, mirror) {
@@ -95,6 +101,122 @@
     };
   };
 
+  extendPixels = function(c) {
+    var filter, rh, rpx, rw;
+    rw = c.width;
+    rh = c.height;
+    rpx = [];
+    filter = function(r, g, b, a, i) {
+      var pnr;
+      pnr = Math.floor(i / 4);
+      return rpx.push({
+        y: Math.floor(pnr / rw),
+        x: Math.floor(pnr % rw),
+        color: [r, g, b, 1.0],
+        "rotation": _.random(0, 360),
+        "mirror": (_.random(0, 1) === 0 ? false : true),
+        pixel_nr: pnr
+      });
+    };
+    FE.rgba(c, filter, (function(c) {
+      return null;
+    }));
+    return rpx;
+  };
+
+  createPixelyVersion = function(c, max_w_h) {
+    var rc, rh, rw;
+    if (max_w_h == null) {
+      max_w_h = 100;
+    }
+    if (c.width >= c.height) {
+      rw = max_w_h;
+      rh = c.height * rw / c.width;
+    } else {
+      rh = max_w_h;
+      rw = c.width * rh / c.height;
+    }
+    rw = Math.floor(rw);
+    rh = Math.floor(rh);
+    rc = FE.pixelyResize(c, rw, rh);
+    dappend(rc);
+    return [rc, rw, rh];
+  };
+
+  createIdealPixelWH = function(parts, overlap) {
+    var non_overlap, p, pixel_w_h, _fn, _i, _len;
+    non_overlap = 1 - overlap;
+    pixel_w_h = 0;
+    _fn = function(p) {
+      return pixel_w_h = pixel_w_h + p.part.width + p.part.height;
+    };
+    for (_i = 0, _len = parts.length; _i < _len; _i++) {
+      p = parts[_i];
+      _fn(p);
+    }
+    pixel_w_h = Math.floor(pixel_w_h / (parts.length * 2) * non_overlap);
+    return pixel_w_h;
+  };
+
+  n = function() {
+    return null;
+  };
+
+  drawWithPicsInsteadOfPixels = function(c, parts, overlap, before_cb, step_cb, final_cb) {
+    var draw, drawingLoop, draws_per_loop, i, loop_i, new_c, new_ctx, pixel_w_h, rc, rh, rpx_length, rw, shuffeled_rpx, total_loops, _ref, _ref1;
+    if (overlap == null) {
+      overlap = 0.3;
+    }
+    if (before_cb == null) {
+      before_cb = n;
+    }
+    if (step_cb == null) {
+      step_cb = n;
+    }
+    if (final_cb == null) {
+      final_cb = n;
+    }
+    if (overlap >= 1) {
+      overlap = 0.65;
+    }
+    if (overlap < 0.2) {
+      overlap = 0.2;
+    }
+    _ref = createPixelyVersion(c, 100), rc = _ref[0], rw = _ref[1], rh = _ref[2];
+    pixel_w_h = createIdealPixelWH(parts, overlap);
+    dlog('pixel_w_h: ' + pixel_w_h);
+    _ref1 = dlog(FE.newCanvasToolbox(rw * pixel_w_h, rh * pixel_w_h)), new_c = _ref1[0], new_ctx = _ref1[1];
+    draw = makeDrawByBrightness(new_ctx, parts, pixel_w_h);
+    shuffeled_rpx = _.shuffle(extendPixels(rc));
+    rpx_length = shuffeled_rpx.length;
+    draws_per_loop = 10;
+    before_cb(new_c);
+    i = 0;
+    loop_i = 0;
+    total_loops = Math.ceil(shuffeled_rpx.length / draws_per_loop);
+    return (drawingLoop = function() {
+      var x, _fn, _i;
+      if (i >= rpx_length) {
+        return final_cb(new_c);
+      } else {
+        _fn = function(x) {
+          var p;
+          p = shuffeled_rpx[i + x];
+          if (p) {
+            return draw(p.color, p.x, p.y, p.rotation, p.mirror, i);
+          }
+        };
+        for (x = _i = 0; 0 <= draws_per_loop ? _i <= draws_per_loop : _i >= draws_per_loop; x = 0 <= draws_per_loop ? ++_i : --_i) {
+          _fn(x);
+        }
+        step_cb(new_c, loop_i, total_loops);
+        i = i + draws_per_loop;
+        loop_i = loop_i + 1;
+        return requestAnimationFrame(drawingLoop);
+      }
+    })();
+  };
+
   collectParts = function(selector, cb) {
     var collectItAll, collector;
     collector = [];
@@ -126,7 +248,7 @@
         return cb(collector);
       }
     };
-    return $(selector).each(function(x) {
+    $(selector).each(function(x) {
       var data_rgb, string_data_rgb;
       data_rgb = false;
       string_data_rgb = $(this).attr('data-rgb');
@@ -139,146 +261,91 @@
         return collectItAll(c, data_rgb);
       });
     });
+    return true;
   };
 
-  extendPixels = function(c) {
-    var filter, rh, rpx, rw;
-    rw = c.width;
-    rh = c.height;
-    rpx = [];
-    filter = function(r, g, b, a, i) {
-      var pnr;
-      pnr = Math.floor(i / 4);
-      return rpx.push({
-        y: Math.floor(pnr / rw),
-        x: Math.floor(pnr % rw),
-        color: [r, g, b, 1.0],
-        "rotation": _.random(0, 360),
-        "mirror": (_.random(0, 1) === 0 ? false : true),
-        pixel_nr: pnr
-      });
-    };
-    FE.rgba(c, filter, (function(c) {
-      return null;
-    }));
-    return rpx;
-  };
+  filepicker.setKey('ApeMsWqEOSBuCzqARVfHLz');
 
-  createPixelyVersion = function(c, max_w_h) {
-    var rc, rh, rw;
-    if (max_w_h == null) {
-      max_w_h = 100;
-    }
-    if (c.width >= c.height) {
-      rw = max_w_h;
-      rh = c.heigth * rw / c.width;
-    } else {
-      rh = max_w_h;
-      rw = c.width * rh / c.height;
-    }
-    rc = FE.pixelyResize(c, rw, rh);
-    dappend(rc);
-    return [rc, rw, rh];
-  };
+  drawing_parts = [];
 
-  createIdealPixelWH = function(parts, overlap) {
-    var non_overlap, p, pixel_w_h, _fn, _i, _len;
-    non_overlap = 1 - overlap;
-    pixel_w_h = 0;
-    _fn = function(p) {
-      return pixel_w_h = pixel_w_h + p.part.width + p.part.height;
-    };
-    for (_i = 0, _len = parts.length; _i < _len; _i++) {
-      p = parts[_i];
-      _fn(p);
-    }
-    pixel_w_h = Math.floor(pixel_w_h / (parts.length * 2) * non_overlap);
-    return pixel_w_h;
-  };
-
-  dummy_before = function(c) {
-    return null;
-  };
-
-  dummy_step = function(c, loop_i, total_loops) {
-    return null;
-  };
-
-  dummy_final = function(c) {
-    return null;
-  };
-
-  veganize = function(c, parts, overlap, before_cb, step_cb, final_cb) {
-    var dis_h, dis_w, draw, drawingLoop, draws_per_loop, i, loop_i, new_c, new_ctx, new_img_data, new_img_data_data, pixel_w_h, rc, rh, rpx, rpx_length, rw, shuffeled_rpx, total_loops, _ref, _ref1;
-    if (overlap == null) {
-      overlap = 0.3;
-    }
-    if (before_cb == null) {
-      before_cb = dummy_before;
-    }
-    if (step_cb == null) {
-      step_cb = dummy_step;
-    }
-    if (final_cb == null) {
-      final_cb = dummy_final;
-    }
-    if (overlap >= 1) {
-      overlap = 0.3;
-    }
-    dis_w = c.width;
-    dis_h = c.height;
-    _ref = createPixelyVersion(c, 100), rc = _ref[0], rw = _ref[1], rh = _ref[2];
-    pixel_w_h = createIdealPixelWH(parts, overlap);
-    dlog(pixel_w_h);
-    _ref1 = dlog(FE.newCanvasToolbox(rw * pixel_w_h, rh * pixel_w_h)), new_c = _ref1[0], new_ctx = _ref1[1], new_img_data = _ref1[2], new_img_data_data = _ref1[3];
-    draw = makeDrawByBrightness(new_ctx, parts, pixel_w_h);
-    rpx = extendPixels(rc);
-    shuffeled_rpx = _.shuffle(rpx);
-    rpx_length = shuffeled_rpx.length;
-    draws_per_loop = 10;
-    before_cb(new_c);
-    i = 0;
-    loop_i = 0;
-    total_loops = Math.ceil(shuffeled_rpx.length / draws_per_loop);
-    return (drawingLoop = function() {
-      var x, _fn, _i;
-      if (i >= rpx_length) {
-        return final_cb(new_c);
-      } else {
-        _fn = function(x) {
-          var p;
-          p = shuffeled_rpx[i + x];
-          if (p) {
-            return draw(p.color, p.x, p.y, p.rotation, p.mirror, i);
-          }
-        };
-        for (x = _i = 0; 0 <= draws_per_loop ? _i <= draws_per_loop : _i >= draws_per_loop; x = 0 <= draws_per_loop ? ++_i : --_i) {
-          _fn(x);
-        }
-        step_cb(new_c, loop_i, total_loops);
-        i = i + draws_per_loop;
-        loop_i = loop_i + 1;
-        return requestAnimationFrame(drawingLoop);
-      }
-    })();
-  };
+  OVERLAP = 0.55;
 
   before = function(c) {
-    return dappend(c);
+    return $('body').append(c);
   };
 
   step = function(c) {
-    return dappend(c);
+    return null;
   };
 
   finish = function(c) {
-    return dappend(c);
+    return null;
+  };
+
+  gotFile = function(inkblob, data) {
+    var image;
+    image = new Image();
+    image.addEventListener("load", function() {
+      var image_max_height, image_max_width, n_nh, n_nw, nh, nw, startVeganize;
+      image_max_width = $(window).width() * 0.8;
+      image_max_height = $(window).height() * 0.8;
+      if ((image.width >= image_max_width) || (image.height >= image_max_height)) {
+        if (image.width >= image.height) {
+          nw = image_max_width;
+          nh = image.height * nw / image.width;
+          if (image.height > image_max_height) {
+            n_nh = image_max_height;
+            n_nw = nw * n_nh / nh;
+            nh = n_nh;
+            nw = n_nw;
+          }
+        } else {
+          nh = image_max_height;
+          nw = image.width * nh / image.height;
+          if (image.width > image_max_width) {
+            n_nw = image_max_width;
+            n_nh = nh * n_nw / nw;
+            nh = n_nh;
+            nw = n_nw;
+          }
+        }
+        image.width = nw;
+        image.height = nh;
+      }
+      $('#to_veganize').html(image);
+      startVeganize = function() {
+        return FE.byImage(image, (function(image_canvas) {
+          return drawWithPicsInsteadOfPixels(image_canvas, drawing_parts, OVERLAP, before, step, finish);
+        }));
+      };
+      return $('#start_veganize').on('click', startVeganize);
+    }, false);
+    return image.src = 'data:' + inkblob.mimetype + ';base64,' + data;
+  };
+
+  pick = function() {
+    return filepicker.pick({
+      mimetype: 'image/*'
+    }, function(inkblob) {
+      console.log(inkblob);
+      console.log(inkblob.url);
+      return filepicker.read(inkblob, {
+        base64encode: true
+      }, function(data) {
+        return gotFile(inkblob, data);
+      }, function(error) {
+        return console.log(error);
+      });
+    });
+  };
+
+  toCanvas = function(x) {
+    return console.log(x);
   };
 
   collectParts('.parts', function(parts) {
-    return FE.byImage($('#testimage').get(0), (function(c) {
-      return veganize(c, parts, 0.65, before, step, finish);
-    }));
+    drawing_parts = parts;
+    return $('#choose_image').on('click', pick);
   });
 
 }).call(this);

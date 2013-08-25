@@ -37,7 +37,8 @@
     "js/temp/main.js"
   ],
   "coffeesrc": [
-    "js/coffee/main.coffee"
+    "js/coffee/main.coffee",
+    "js/coffee/veganizer.coffee"
   ],
   "buildto": "js/lib/main.js",
   "buildmin": "js/lib/main.min.js",

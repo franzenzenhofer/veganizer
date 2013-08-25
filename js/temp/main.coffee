@@ -1,15 +1,16 @@
-# /*! yet-another-coffescript-skeleton - v0.0.2 - last build: 2013-08-17 18:51:14 */
-_DEBUG_ = true
+# /*! yet-another-coffescript-skeleton - v0.0.2 - last build: 2013-08-24 20:37:41 */
+_DEBUG_ = false
 
-RESIZE_FACTOR = 5
-BIG_PIXEL_SIZE = 15
-
-dlog = (msg) -> 
-  console.log(msg) if _DEBUG_
+dlog = (msg, debug = _DEBUG_) -> 
+  console.log(msg) if debug
   return msg
 
-dappend = (c) -> 
-  $('body').append(c) if _DEBUG_
+dappend = (c, debug = _DEBUG_) -> 
+  $('body').append(c) if debug
+  return c
+
+append = (c) -> 
+  $('body').append(c) 
   return c
 
 drawRotatedImage = (image, context, x=0, y=0, angle=0) -> 
@@ -21,14 +22,13 @@ drawRotatedImage = (image, context, x=0, y=0, angle=0) ->
   context.restore()
   return true
 
-getBrightness = (r,g,b) ->
-  return (3*r+4*g+b)>>>3
+getBrightness = (r,g,b) -> (3*r+4*g+b)>>>3
 
-brightnessSortForExtendedPixels = (ae,be)-> 
-  a = ae.color
-  b = be.color
-  sorty_value = ((3*a[0]+4*a[1]+a[2])>>>3) - ((3*b[0]+4*b[1]+b[2])>>>3)
-  return sorty_value
+brightnessSortForExtendedPixels = (a_extended,b_extended)-> 
+  a = a_extended.color
+  b = b_extended.color
+  #sorty_value = ((3*a[0]+4*a[1]+a[2])>>>3) - ((3*b[0]+4*b[1]+b[2])>>>3)
+  return getBrightness(a[0], a[1], a[2]) - getBrightness(b[0], b[1], b[2])
 
 drawExtendedPixelWithPart = (ctx, part_to_draw, x = 0, y = 0, rotation = 0, mirror = false) ->
   if mirror
@@ -40,8 +40,6 @@ drawExtendedPixelWithPart = (ctx, part_to_draw, x = 0, y = 0, rotation = 0, mirr
 makeDrawByBrightness = (ctx, parts, pixel_w_h) ->
   nr_of_buckets = parts.length
   sorted_by_brightness_parts = parts.sort(brightnessSortForExtendedPixels)
-  #dlog('sorted_by_brightness_parts')
-  #dlog(sorted_by_brightness_parts)
   
   return (color,x,y,rotation=0, mirror=false, i) ->
     brightness = getBrightness(color[0], color[1], color[2])
@@ -62,12 +60,98 @@ makeDrawByBrightness = (ctx, parts, pixel_w_h) ->
 #    drawExtendedPixelWithPart(ctx, part_to_draw, x, y, rotation, mirror)
 #    return [color,x,y,i]
 
+extendPixels = (c) ->
+  #create an array with extended veganized pixels
+  rw = c.width
+  rh = c.height
+  rpx = []
+  filter = (r,g,b,a, i) -> 
+    pnr = Math.floor(i/4)
+    rpx.push(
+      y: Math.floor(pnr/rw)
+      x: Math.floor(pnr%rw)
+      color: [r,g,b,1.0]
+      "rotation": _.random(0,360)
+      "mirror": (if _.random(0,1) is 0 then false else true)
+      pixel_nr: pnr
+      )
+  FE.rgba(c,filter,((c)->null))
+  return rpx
+
+#pixelyResize = (c,w,h) ->
+#  debugger
+#  [new_c, new_ctx]=FE.newCanvasToolbox(w, h)
+#  new_ctx?.webkitImageSmoothingEnabled = false
+#  new_ctx?.imageSmoothingEnabled = false
+#  new_ctx?.mozImageSmoothingEnabled = false
+#  new_ctx.drawImage(c, 0, 0, w, h)
+#  return new_c
+
+createPixelyVersion = (c, max_w_h = 100) ->
+  if c.width >= c.height
+    rw = max_w_h
+    rh = c.height * rw/c.width
+  else
+    rh = max_w_h
+    rw = c.width * rh/c.height
+  rw = Math.floor(rw)
+  rh = Math.floor(rh)
+  rc = FE.pixelyResize(c, rw, rh)
+  #rc = pixelyResize(c, rw, rh)
+  dappend(rc)
+  return [rc, rw, rh] 
+
+createIdealPixelWH = (parts, overlap) ->
+  non_overlap = 1 - overlap
+  pixel_w_h = 0
+  for p in parts
+    do (p) ->
+      pixel_w_h = pixel_w_h + p.part.width + p.part.height
+  pixel_w_h = Math.floor(pixel_w_h/(parts.length*2)*non_overlap)
+  return pixel_w_h
+
+n = () -> null
+
+
+drawWithPicsInsteadOfPixels = (c, parts, overlap=0.3, before_cb = n, step_cb = n, final_cb = n) ->
+  if overlap >= 1 then overlap = 0.65
+  if overlap <0.2 then overlap = 0.2
+  [rc, rw, rh] = createPixelyVersion(c, 100) 
+  pixel_w_h = createIdealPixelWH(parts, overlap)
+  dlog('pixel_w_h: '+pixel_w_h)
+
+  [new_c, new_ctx] = dlog(FE.newCanvasToolbox(rw*pixel_w_h, rh*pixel_w_h))
+  #we create our own very cool draw function
+  draw = makeDrawByBrightness(new_ctx, parts, pixel_w_h)
+
+  #extend and shuffle the pixels
+  shuffeled_rpx = _.shuffle(extendPixels(rc))
+  rpx_length = shuffeled_rpx.length
+  draws_per_loop = 10
+  before_cb(new_c)
+  
+  i = 0
+  loop_i = 0
+  total_loops = Math.ceil(shuffeled_rpx.length/draws_per_loop)
+  
+  do drawingLoop = () ->
+    if i >= rpx_length
+      final_cb(new_c)
+    else
+      for x in [0..draws_per_loop]
+        do (x) ->
+          p = shuffeled_rpx[i+x]
+          if p then draw(p.color,p.x,p.y,p.rotation,p.mirror,i)
+      step_cb(new_c, loop_i, total_loops) 
+      
+      i = i + draws_per_loop
+      loop_i = loop_i + 1
+      requestAnimationFrame(drawingLoop)
+
 collectParts = (selector, cb) ->
   collector = []
 
   collectItAll = (part_canvas, rgb) ->
-    #part_canvas = FE.hardResize(part_canvas, w, h)
-    #part_canvas = FE.copy(part_canvas)
     if rgb and rgb.length is 3
         [r,g,b] = rgb
         collector.push({
@@ -98,138 +182,88 @@ collectParts = (selector, cb) ->
       data_rgb = _.map(string_data_rgb.split(','), ((x)->parseInt(x)))
     FE.byImage(this, (c)-> (collectItAll(c, data_rgb)))
     )
+  return true
+
+#before = (c) -> append(c)
+#step = (c) -> dappend(c)
+#finish = (c) -> dappend(c)
+#
+#collectParts('.parts', (parts)->
+#  FE.byImage($('#testimage').get(0), (
+#    (c)->drawWithPicsInsteadOfPixels(c, parts, 0.55, before, step, finish))
+#  )
+#)
 
 
 
 
-#createPixelyVersion = (c) ->
-#  #make a pixely version of the c canvas
-#  rw = Math.floor(c.width/RESIZE_FACTOR)
-#  rh = Math.floor(c.height/RESIZE_FACTOR)
-#  rc = FE.pixelyResize(FE.invert(c, 0.0), rw, rh)
-#  dappend(rc)
-#  return [rc, rw, rh]
+filepicker.setKey('ApeMsWqEOSBuCzqARVfHLz')
 
-extendPixels = (c) ->
-  #create an array with extended veganized pixels
-  rw = c.width
-  rh = c.height
-  rpx = []
-  filter = (r,g,b,a, i) -> 
-    pnr = Math.floor(i/4)
-    rpx.push(
-      y: Math.floor(pnr/rw)
-      x: Math.floor(pnr%rw)
-      color: [r,g,b,1.0]
-      "rotation": _.random(0,360)
-      "mirror": (if _.random(0,1) is 0 then false else true)
-      pixel_nr: pnr
-      )
-  FE.rgba(c,filter,((c)->null))
-  return rpx
+drawing_parts = []
+OVERLAP = 0.55
 
+before = (c) ->
+  $('body').append(c)
 
-#createPixelyVersion = (c, pixel_width = 20, pixel_height = 20, overlap = 0.2, out_w = c.width, out_h = c.height) ->
-#  if overlap >= 1 then overlap = 0
-#  rw = Math.floor(out_w/(pixel_width*(1-overlap)))
-#  rh = Math.floor(out_h/(pixel_height*(1-overlap)))
-#  rc = FE.pixelyResize(c, rw, rh)
-#  dappend(rc)
-#  return [rc, rw, rh]  
+step = (c) -> null
 
-createPixelyVersion = (c, max_w_h = 100) ->
-  if c.width >= c.height
-    rw = max_w_h
-    rh = c.heigth * rw/c.width
-  else
-    rh = max_w_h
-    rw = c.width * rh/c.height
-  rc = FE.pixelyResize(c, rw, rh)
-  dappend(rc)
-  return [rc, rw, rh] 
+finish = (c) -> null
 
-createIdealPixelWH = (parts, overlap) ->
+gotFile = (inkblob, data) ->
+  image = new Image()
+  image.addEventListener("load", ()->
+    image_max_width = $(window).width()*0.8
+    image_max_height = $(window).height()*0.8
 
-  non_overlap = 1 - overlap
-  pixel_w_h = 0
-  for p in parts
-    do (p) ->
-      pixel_w_h = pixel_w_h + p.part.width + p.part.height
-  pixel_w_h = Math.floor(pixel_w_h/(parts.length*2)*non_overlap)
-  return pixel_w_h
+    if (image.width >= image_max_width) or (image.height >= image_max_height)
+      if image.width >= image.height
+        nw = image_max_width 
+        nh = image.height * nw / image.width
+        if image.height > image_max_height
+          n_nh = image_max_height
+          n_nw = nw * n_nh / nh
+          nh = n_nh
+          nw = n_nw
+      else
+        nh = image_max_height
+        nw = image.width * nh / image.height
+        if image.width > image_max_width
+          n_nw = image_max_width
+          n_nh = nh * n_nw / nw
+          nh = n_nh
+          nw = n_nw
+      image.width = nw
+      image.height = nh
 
-dummy_before = (c) -> return null
-
-dummy_step = (c, loop_i, total_loops) -> return null
-
-dummy_final = (c) -> return null
-
-veganize = (c, parts, overlap=0.3, before_cb = dummy_before, step_cb = dummy_step, final_cb = dummy_final) ->
-  if overlap >= 1 then overlap = 0.3
-  dis_w = c.width
-  dis_h = c.height 
-
-  [rc, rw, rh] = createPixelyVersion(c, 100) 
-
-  pixel_w_h = createIdealPixelWH(parts, overlap)
-  dlog(pixel_w_h)
-
-  [new_c, new_ctx, new_img_data, new_img_data_data] = dlog(FE.newCanvasToolbox(rw*pixel_w_h, rh*pixel_w_h))
-  #[new_c, new_ctx, new_img_data, new_img_data_data] = FE.newCanvasToolbox(new_w, new_h)
-
-
-  #draw = makeDraw(new_ctx, parts)
-  draw = makeDrawByBrightness(new_ctx, parts, pixel_w_h)
-
-  rpx = extendPixels(rc)
-  #make the draws random
-  shuffeled_rpx = _.shuffle(rpx)
-  rpx_length = shuffeled_rpx.length
-  draws_per_loop = 10
-  before_cb(new_c)
+    #resize image logic
+    $('#to_veganize').html(image)
+    startVeganize = () ->
+      FE.byImage(image, ((image_canvas)->drawWithPicsInsteadOfPixels(image_canvas, drawing_parts, OVERLAP, before, step, finish)))
+    
+    $('#start_veganize').on('click', startVeganize)   
+  , false)
   
-  i = 0
-  loop_i = 0
-  total_loops = Math.ceil(shuffeled_rpx.length/draws_per_loop)
+  image.src = 'data:'+inkblob.mimetype+';base64,'+data
   
-  do drawingLoop = () ->
-    if i >= rpx_length
-      final_cb(new_c)
-    else
-      for x in [0..draws_per_loop]
-        do (x) ->
-          p = shuffeled_rpx[i+x]
-          if p then draw(p.color,p.x,p.y,p.rotation,p.mirror,i)
-      step_cb(new_c, loop_i, total_loops) 
-      
-      i = i + draws_per_loop
-      loop_i = loop_i + 1
-      requestAnimationFrame(drawingLoop)
-
-  #for p,i in shuffeled_rpx
-  #  do (p) ->
-  #    dlog(p)
-  #    draw(p.color,p.x,p.y,p.rotation,p.mirror,i)
-      #new_ctx.fillStyle = "rgba("+p.color.join(',')+")"
-      #new_ctx.drawCircle(20+p.y*RESIZE_FACTOR,20+p.x*RESIZE_FACTOR,8)
-  #dappend(FE.hardResize(new_ctx,c.width,c.height))
-  
-  #dappend(out_canvas)
-  #dappend(new_c)
-  #the callback gets the final 
-  
-  #_.each()
-
-before = (c) -> dappend(c)
-step = (c) -> dappend(c)
-finish = (c) -> dappend(c)
 
 
-collectParts('.parts', (parts)->
-  FE.byImage($('#testimage').get(0), (
-    (c)->veganize(c, parts, 0.65, before, step, finish))
+
+
+pick = () ->
+  filepicker.pick({mimetype: 'image/*'}, (inkblob) ->
+    console.log(inkblob)
+    console.log(inkblob.url)
+    filepicker.read(inkblob,{base64encode: true}, (data) -> 
+      gotFile(inkblob, data)
+    , (error) -> 
+      console.log(error)
+    )
   )
+
+toCanvas = (x) -> console.log(x)
+
+collectParts('.parts', (parts)-> 
+  drawing_parts = parts 
+  $('#choose_image').on('click', pick)
 )
-
-
 
