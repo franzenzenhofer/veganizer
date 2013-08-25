@@ -8,8 +8,7 @@
     <meta name="robots" content="noindex, follow">
     <link rel="stylesheet" href="css/main.css" >
   </head>
-  <body>
-    <h1>Veganizer</h1>
+  <body >
     <!-- the parts i need for drawing -->
       <img src="i/parts/banana.png" class="parts" data-rgb="255,255,0">
       <img src="i/parts/banana2.png" class="parts" data-rgb="204,204,0">
@@ -37,31 +36,38 @@
       <img src="i/parts/aubergine1.png" class="parts" data-rgb="245,244,249">
       <img src="i/parts/coconut.png" class="parts" >
     <!-- end  parts we need for drawing -->
-    <div id="call_to_action">
-      <h2>Call to Action</h2>
-      <div><button id="choose_image">Select an image</button></div>
+      <img src="i/veganblatt-logo.png" id="veganblatt_logo" style="display:none;" width="250px" height="266px">
+    <!-- -->
+    <div class="table-like">
+      <div class="table-centered">
+        <h1>Veganizer</h1>
+        <div id="call_to_action">
+          <div><button id="choose_image">Select an image</button></div>
+        </div>
+        <div id="post_file_select" style="display:none;">
+          <div id="to_veganize"></div>
+          <button id="start_veganize">Veganize</button>
+        </div>
+        <div id="before_start" style="display:none;">
+        </div>
+        <div id="step_by_step" style="display:none;">
+          <div id="step_veganized"></div>
+          <div id="progress"></div>
+        </div>
+        <div id="finished" style="display:none;">
+            <div id="finished_image"></div>
+            <button id="export"  >Save image (to disk, Fb, ...)</button>
+        <div>
+      </div>
     </div>
-    <div id="post_file_select">
-      <h2>After the file select</h2>
-      <div id="to_veganize"></div>
-      <button id="start_veganize">Veganize</button>
-    </div>
-    <div id="before_start">
-      <h2>Before Start</h2>
-    </div>
-    <div id="step_by_step">
-      <h2>Step By Step</h2>
-      <div id="step_veganized"></div>
-    </div>
-    <div id="finished">
-        <h2>Finished</h2>
-    <div>
     <script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
     <script>window.jQuery || document.write('<script src="js/bower_components/jquery/jquery.min.js"><\/script>')</script>
     <script src="js/bower_components/underscore/underscore.js"></script>
     <script src="js/bower_components/raf.js/raf.js"></script>
     <script src="js/vendor/FE/js/lib/main.js"></script>
+    <script src="js/vendor/nprogress.js"></script>
     <script type="text/javascript" src="//api.filepicker.io/v1/filepicker.js"></script>
+    <script src="https://api.filepicker.io/v1/filepicker_debug.js"></script>
     <script src="js/main.js" ></script> 
   </body> 
 </html>

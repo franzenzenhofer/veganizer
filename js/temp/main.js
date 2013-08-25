@@ -1,5 +1,5 @@
 (function() {
-  var OVERLAP, append, before, brightnessSortForExtendedPixels, collectParts, createIdealPixelWH, createPixelyVersion, dappend, dlog, drawExtendedPixelWithPart, drawRotatedImage, drawWithPicsInsteadOfPixels, drawing_parts, extendPixels, finish, getBrightness, gotFile, makeDrawByBrightness, n, pick, step, toCanvas, _DEBUG_;
+  var OVERLAP, append, before, brightnessSortForExtendedPixels, collectParts, createIdealPixelWH, createPixelyVersion, dappend, display_image_height, display_image_width, dlog, drawExtendedPixelWithPart, drawRotatedImage, drawWithPicsInsteadOfPixels, drawing_parts, extendPixels, finalExport, finish, getBrightness, global_image_name, global_show_storage_progress, global_stored, gotFile, makeDrawByBrightness, n, pick, resizeImage, step, step_canvas, step_canvas_context, storeCanvas, toCanvas, _DEBUG_;
 
   _DEBUG_ = false;
 
@@ -269,51 +269,157 @@
 
   OVERLAP = 0.55;
 
+  display_image_width = 0;
+
+  display_image_height = 0;
+
+  step_canvas = $('<canvas>').get(0);
+
+  step_canvas_context = step_canvas.getContext('2d');
+
+  global_image_name = "veganizer-veganblatt";
+
+  global_stored = false;
+
+  global_show_storage_progress = false;
+
   before = function(c) {
-    return $('body').append(c);
+    step_canvas.width = display_image_width;
+    step_canvas.height = display_image_height;
+    $('#post_file_select').hide();
+    $('#step_by_step').show();
+    return $('#step_veganized').html(step_canvas);
   };
 
-  step = function(c) {
+  step = function(c, a, b) {
+    var prog, prog_per;
+    step_canvas_context.drawImage(c, 0, 0, display_image_width, display_image_height);
+    prog = (a / b).toFixed(2);
+    prog_per = Math.floor(prog * 100);
+    $('#progress').html(prog_per + '%');
     return null;
+  };
+
+  storeCanvas = function(c, cb, error_cb, progress_cb) {
+    var b64;
+    if (error_cb == null) {
+      error_cb = (function(e) {
+        return console.log(e);
+      });
+    }
+    if (progress_cb == null) {
+      progress_cb = (function(p) {
+        return console.log(p);
+      });
+    }
+    console.log('in store canvas');
+    console.log(c);
+    b64 = c.toDataURL('image/jpeg').split(',', 2)[1];
+    return filepicker.store(b64, {
+      mimetype: 'image/jpeg',
+      base64decode: true
+    }, cb, error_cb, progress_cb);
+  };
+
+  finalExport = function(inkblob) {
+    console.log(inkblob);
+    return filepicker.exportFile(inkblob, {
+      suggestedFilename: global_image_name
+    }, function(inkblob) {
+      return console.log(inkblob);
+    }, function(error) {
+      return console.log(error);
+    });
   };
 
   finish = function(c) {
+    var c_ctx, enableExport, logo, storageProgress;
+    console.log('finished');
+    logo = $('#veganblatt_logo').get(0);
+    c_ctx = c.getContext('2d');
+    c_ctx.drawImage(logo, c.width - (logo.width + 15), c.height - (logo.height + 10));
+    step_canvas_context.drawImage(c, 0, 0, display_image_width, display_image_height);
+    $('#export').on('click', function() {
+      if (global_stored === false) {
+        return global_show_storage_progress = true;
+      }
+    });
+    storageProgress = function(p) {
+      var s;
+      s = "Save image (to disk, Fb, ...)";
+      if (global_show_storage_progress) {
+        if (p < 100) {
+          $('#export').attr('disabled', 'disabled');
+          return $('#export').html(s + ' ' + p + '%');
+        } else {
+          return $('#export').html(s);
+        }
+      }
+    };
+    enableExport = function(inkblob) {
+      global_stored = true;
+      $('#export').on('click', (function() {
+        return finalExport(inkblob);
+      }));
+      return $('#export').attr('disabled', false);
+    };
+    storeCanvas(c, enableExport, void 0, storageProgress);
+    $('#finished_image').html(step_canvas);
+    $('#step_by_step').hide();
+    $('#finished').show();
     return null;
   };
 
+  resizeImage = function(image) {
+    var image_max_height, image_max_width, n_nh, n_nw, nh, nw;
+    image_max_width = $(window).width() * 0.8;
+    image_max_height = $(window).height() * 0.8;
+    if ((image.width >= image_max_width) || (image.height >= image_max_height)) {
+      if (image.width >= image.height) {
+        nw = image_max_width;
+        nh = image.height * nw / image.width;
+        if (nh > image_max_height) {
+          n_nh = image_max_height;
+          n_nw = nw * n_nh / nh;
+          nh = n_nh;
+          nw = n_nw;
+        }
+      } else {
+        nh = image_max_height;
+        nw = image.width * nh / image.height;
+        if (nw > image_max_width) {
+          n_nw = image_max_width;
+          n_nh = nh * n_nw / nw;
+          nh = n_nh;
+          nw = n_nw;
+        }
+      }
+      image.width = nw;
+      image.height = nh;
+      console.log(image);
+    }
+    display_image_width = image.width;
+    display_image_height = image.height;
+    return image;
+  };
+
   gotFile = function(inkblob, data) {
-    var image;
+    var filename, image, _ref, _ref1;
+    filename = (inkblob != null ? (_ref = inkblob.filename) != null ? (_ref1 = _ref.match(/(.*)\.[^.]+$/)) != null ? _ref1[1] : void 0 : void 0 : void 0) || inkblob.filename;
+    if (filename) {
+      global_image_name = 'veganblatt-' + filename + '-veganizer';
+    }
     image = new Image();
     image.addEventListener("load", function() {
-      var image_max_height, image_max_width, n_nh, n_nw, nh, nw, startVeganize;
-      image_max_width = $(window).width() * 0.8;
-      image_max_height = $(window).height() * 0.8;
-      if ((image.width >= image_max_width) || (image.height >= image_max_height)) {
-        if (image.width >= image.height) {
-          nw = image_max_width;
-          nh = image.height * nw / image.width;
-          if (image.height > image_max_height) {
-            n_nh = image_max_height;
-            n_nw = nw * n_nh / nh;
-            nh = n_nh;
-            nw = n_nw;
-          }
-        } else {
-          nh = image_max_height;
-          nw = image.width * nh / image.height;
-          if (image.width > image_max_width) {
-            n_nw = image_max_width;
-            n_nh = nh * n_nw / nw;
-            nh = n_nh;
-            nw = n_nw;
-          }
-        }
-        image.width = nw;
-        image.height = nh;
-      }
-      $('#to_veganize').html(image);
+      var r_image, startVeganize;
+      console.log('dsfdsjhgdjlks');
+      r_image = resizeImage(image);
+      $('#call_to_action').hide();
+      $('#to_veganize').html(r_image);
+      $('#post_file_select').show();
       startVeganize = function() {
-        return FE.byImage(image, (function(image_canvas) {
+        console.log('start Veganize');
+        return FE.byImage(r_image, (function(image_canvas) {
           return drawWithPicsInsteadOfPixels(image_canvas, drawing_parts, OVERLAP, before, step, finish);
         }));
       };
@@ -326,8 +432,6 @@
     return filepicker.pick({
       mimetype: 'image/*'
     }, function(inkblob) {
-      console.log(inkblob);
-      console.log(inkblob.url);
       return filepicker.read(inkblob, {
         base64encode: true
       }, function(data) {
